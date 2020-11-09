@@ -1,0 +1,278 @@
+
+function doGet(e)
+{
+  var sheet = SpreadsheetApp.getActiveSheet();
+  var data = sheet.getDataRange().getValues(); //All the data of the entire sheet is stored as a table in this variable
+  
+  var response = "Nothing to say."; // the response given when running the webapp
+  
+ /*var firstRowVals = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues();
+  var HeaderLast = firstRowVals.filter(String).length;*/
+ // var headers = sheet.getRange(1, 1, 1, HeaderLast).getValues()[0]; //get the headers from the sheet
+  var headers = sheet.getRange(1, 1, 1, 7).getValues()[0]; //get the headers from the sheet
+  var headeroffset = 1; //a manual offset, used to indicat that the headers start at row 2
+  
+  var thisUID = e.parameter["UID"]; //The UID of the spool that corresponds to the data being sent
+  
+  //This code determines in which row the data should be entered.
+  var UIDvals = sheet.getRange("D1:D").getValues();
+  var UIDlast = UIDvals.filter(String).length;
+  var thisUIDRow = UIDlast+1; //by default, the data will be stored in a new row
+  
+  var knownUIDs = sheet.getRange(1,4,UIDlast); //the range of UIDs that the database has already stored
+  
+  for (let i = 0; i <= knownUIDs.getNumRows(); i++) //Iterate over the known UIDs to prevent duplicates
+  {
+      //sheet.getRange(i+2,i+2).setValue( knownUIDs.getValues()[i]); //debugging tool
+
+    if (thisUID == knownUIDs.getValues()[i]) //If the new UID matches a previously stored UID, the data will be entered in that row
+    {
+      thisUIDRow = i+headeroffset;
+      response = "duplicate UID found at " + thisUIDRow;
+    }
+  }
+  
+  sheet.getRange(thisUIDRow,4).setValue(thisUID);
+  sheet.getRange(thisUIDRow,7).setValue(e.parameter["W"]);
+  var d = new Date();
+  sheet.getRange(thisUIDRow,6).setValue(d.toDateString() + ", " + d.toLocaleTimeString());
+  
+  //After having determined the correct row, the data is entered into the relevant columns
+ /* for (i in headers) 
+  {
+    if (headers[i] == "Spool UID"&&thisUID!="")
+    {
+      sheet.getRange(thisUIDRow,i+1).setValue(thisUID);
+               response = i;
+    }
+    
+    if(headers[i] == "Weight")
+    {
+      sheet.getRange(thisUIDRow,i+1).setValue(e.parameter["W"]);
+                 // response = i;
+    }
+    
+    if(headers[i] == "Last updated on")
+    {
+      var d = new Date();
+      sheet.getRange(thisUIDRow,5).setValue(d.toDateString() + ", " + d.toLocaleTimeString());
+    }
+  }*/
+ 
+  //sheet.getRange(thisUIDRow,1).setValue(thisUID);
+  
+  
+  
+  //sheet.getRange('F2').setValue(e.parameter["val"]);
+  
+  return ContentService.createTextOutput(response);
+
+  
+}
+
+function LogData()
+{
+  // Acquiring the previously logged data
+  
+  var Logsheet = SpreadsheetApp.getActive().getSheetByName("Logged data");
+  var LogData = Logsheet.getDataRange(); // grabs all logged data
+  
+  var FilLogNames = Logsheet.getRange("B1:1").getValues()[0]; // Grab the entire first row of the logs
+  var FilLogLast = FilLogNames.filter(String).length; // Determine the amount of cells with actual text
+  var knownLoggedFils = Logsheet.getRange(1,1,1,FilLogLast); // Grab all the names of logged filaments
+  
+  var FilLogLatest = LogData.getLastRow(); // Last Row that contains data, this corresponds to the last update made to the logs
+  
+  
+  //--------------------------
+  
+  // Acquiring the current data (data to be logged)
+  
+  var Datasheet = SpreadsheetApp.getActive().getSheetByName("Database");
+  
+  var FilNames = Datasheet.getRange("A2:A").getValues(); // Grab the entire first column, starting from A2
+  var FilLast = FilNames.filter(String).length; // Determine the amount of cells with actual text
+  var KnownFils = Datasheet.getRange(2,1,FilLast); // Grab all the names of the active filaments
+  
+  var FilWeights = Datasheet.getRange("B2:B").getValues(); // grab the entire column that contains the fil weight values
+  var FilWeightLast = FilWeights.filter(String).length; // Determine the amount of cells with actual text
+  var KnownFilWeights = Datasheet.getRange(2,2,FilWeightLast); //Grab all the cells with weight values.
+  
+  //--------------------------
+  
+  for (let i = 0; i <= KnownFils.getNumRows()-1; i++) //Iterate over the active filaments
+  {
+    
+  FilLogNames = Logsheet.getRange("A1:1").getValues()[0]; // Grab the entire first row of the logs
+  FilLogLast = FilLogNames.filter(String).length; // Determine the amount of cells with actual text
+  knownLoggedFils = Logsheet.getRange(1,1,1,FilLogLast); // Grab all the names of logged filaments
+ 
+    
+  var thisFilColumn = FilLogLast; // The column in which the filament data will be stored. By default, it's a new column after FilLogLast
+   
+    
+    for (let j = 0; j <= knownLoggedFils.getNumColumns()-1; j++) //Iterate over all the filaments that are already stored in the logs
+    {
+      var thisKnownFils = KnownFils.getValues();
+      var thisKnownFil = thisKnownFils[i][0];
+      var thisKnownLoggedFils = knownLoggedFils.getValues()[0]
+      var thisFilLogName = thisKnownLoggedFils[j];
+      if (thisKnownFil == thisFilLogName) //If the active fil name matches with an already logged fil name, the data will be stored in that column
+      {
+        thisFilColumn = j;
+      }
+    }
+    
+    if(FilLogLatest>=2) //check if there is already data in the log
+    {
+      var previousVal = Logsheet.getRange(FilLogLatest,thisFilColumn+1).getValue(); //The previous value that was logged for this filament
+      
+      if(previousVal<KnownFilWeights.getValues()[i]) //if true, then that implies that the filament has 'gained weight', which is impossible and indicates a measurement error
+      {
+        Logsheet.getRange(FilLogLatest+1,thisFilColumn+1).setValue(previousVal); //reuse the previous value in the database
+      }
+      else //else, just enter the value normally
+      {
+        Logsheet.getRange(FilLogLatest+1,thisFilColumn+1).setValue(KnownFilWeights.getValues()[i]);
+      }
+    }
+    else //else, just log the data (this only occurs on the first entry into the log)
+    {
+      Logsheet.getRange(FilLogLatest+1,thisFilColumn+1).setValue(KnownFilWeights.getValues()[i]); 
+    }
+    
+  }
+  
+   var d = new Date(); // Add the date to the data
+  Logsheet.getRange(FilLogLatest+1,1).setValue(d.toDateString() + ", " + d.toLocaleTimeString());
+  
+  WeeklyUsage();
+  
+}
+
+function SortByDate()
+{
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Database");
+  //sheet.sort(6);
+  
+  var data = sheet.getDataRange();
+  var filCount = data.getLastRow()-1; //number of logged filaments
+  var colCount = data.getLastColumn(); 
+  var dates = sheet.getRange(2,6,filCount,1).getValues(); //array containing all the dates
+
+  
+  for (let i = 0; i < filCount; i++) //The dates will be converted to numbers, which are used as a reference for sorting
+  {
+    var thisDate = new Date(dates[i][0]); //converts the formatted date string into a date object
+    sheet.getRange(i+2,colCount+1).setValue(thisDate.getTime()); //convert the date to a number and paste it into a new column
+  }
+  
+  var data = sheet.getRange(2,1,filCount,colCount+1); //data to be sorted
+  data.sort({column: colCount+1, ascending: false}); //sort the data range based on the column made in the for loop
+  
+  
+  
+  var datenumbers = sheet.getRange(1,colCount+1,filCount+1); //grab the column with the date numbers and delete it
+  datenumbers.clear();
+}
+
+function onOpen() {
+  var ui = SpreadsheetApp.getUi();
+  // Or DocumentApp or FormApp.
+  ui.createMenu('Sorting')
+      .addItem('Sort by date', 'SortByDate')
+    .addItem('Sort by weight', 'SortByWeight')
+      .addToUi();
+}
+
+function WeeklyUsage()
+{
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Logged data");
+  var resultSheet = ss.getSheetByName("Usage statistics");
+ 
+  var dataRange = sheet.getDataRange()
+  var data = dataRange.getValues();
+  var dataCount = dataRange.getLastRow()-1; //Number of logged days
+  var colCount = dataRange.getLastColumn(); 
+  var dates = sheet.getRange(2,1,dataCount).getValues(); //array containing all the dates
+  
+  var startWeek = Utilities.formatDate(new Date(dates[0][0]), "CET", "w");  //First week of logged data
+  var weekRow = 1; //Every week has its own row for the cumulative difference
+ // var lastValues = sheet.getRange(2,2,1,colCount-1).getValues(); //first set of logged data, basically how much filament I started with originally
+  var lastValues = slice2d(data,1,1,1,colCount-1); //first set of logged data, basically how much filament I started with originally
+  
+  var numWeeks = Utilities.formatDate(new Date(dates[dataCount-1][0]), "CET", "w")-startWeek+1; //the amount of logged weeks ; this determines the size of the result array
+  
+  var resultArray=new Array(numWeeks) //creating the 2D array that will hold the result
+  for (i=0; i <numWeeks; i++)
+  {
+    resultArray[i]=new Array(colCount-1);
+    for(j=0;j<colCount-1;j++)
+    {
+      resultArray[i][j] = 0;
+    }
+  }
+  
+  var weekStartDay = new Date(dates[0][0]) //set the header in the first column to the correct start day
+  resultSheet.getRange(2,1).setValue("Week of " + weekStartDay.getDate() + "/" +(weekStartDay.getMonth()+1));
+  
+  for (let i = 1 ; i < dataCount ; i++) //iterate over every logged day
+  {
+    var thisWeek = Utilities.formatDate(new Date(dates[i][0]), "CET", "w"); //Week number for current dataset
+    var thisValues = slice2d(data,i+1,1,1,colCount-1);//data for that day
+    
+    if (thisWeek<= startWeek) // if true, then we're still in the same week
+    {
+      for (let j = 0 ; j < colCount-1 ; j++)
+      {
+        var diff = lastValues[0][j] - thisValues[0][j]; //get the weight difference between yesterday and today
+        resultArray[weekRow-1][j] = diff+resultArray[weekRow-1][j]; //Add it to the result array
+        lastValues[0][j] = thisValues[0][j]; // today's value becomes yesterday's value for the next loop
+      }
+    }
+    else //else, we've started a new week
+    {
+      weekRow=weekRow+1; //This value determines in what row the data is inserted
+      startWeek = thisWeek;
+     //var lastValues = slice2d(data,i+1,1,1,colCount-1); //reset the lastvalues to the data at the start of the new week
+      
+       for (let j = 0 ; j < colCount-1 ; j++)
+      {
+        var diff = lastValues[0][j] - thisValues[0][j]; //get the weight difference between yesterday and today
+        resultArray[weekRow-1][j] = diff; //Add it to the result array
+        lastValues[0][j] = thisValues[0][j]; // today's value becomes yesterday's value for the next loop
+      }
+      
+      var weekStartDay = new Date(dates[i][0]) //set the header in the first column to the correct start day
+      resultSheet.getRange(weekRow+1,1).setValue("Week of " + weekStartDay.getDate() + "/" +(weekStartDay.getMonth()+1));
+    }
+    
+  }
+  
+  resultSheet.getRange(2,2,numWeeks,colCount-1).setValues(resultArray); //Print the result to the sheet
+  
+}
+
+function slice2d(array, rowIndex, colIndex, numRows, numCols) {
+  var result = [];
+  for (var i = rowIndex; i < (rowIndex + numRows); i++) {
+    result.push(array[i].slice(colIndex, colIndex + numCols));
+  }
+  return result;
+}
+
+function SortByWeight()
+{
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName("Database");
+  
+    var data = sheet.getDataRange();
+  var filCount = data.getLastRow()-1; //number of logged filaments
+  var colCount = data.getLastColumn();  
+  
+  var data = sheet.getRange(2,1,filCount,colCount+1); //data to be sorted
+  data.sort({column: 2, ascending: false}); //sort the data range based on the column made in the for loop
+  
+}
