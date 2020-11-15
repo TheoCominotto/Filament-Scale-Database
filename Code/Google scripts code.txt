@@ -1,7 +1,7 @@
 
 function doGet(e)
 {
-  /* This function is the one that gets called whenever the ESP send over data. The parameter 'e' contains the transmitted data.
+  /* This function is the one that gets called whenever the ESP sends over data. The parameter 'e' contains the transmitted data.
   e.parameter["W"] is the weight
   e.parameter["W"] is the UID
   The sheet checks the existing UID's, updates the weight if the UID is already known, and created a new entry if not.
